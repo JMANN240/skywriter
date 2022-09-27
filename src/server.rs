@@ -95,7 +95,14 @@ async fn get_dir_info(virtual_path: PathBuf, config: &State<Config>, _password: 
 
 #[launch]
 fn rocket() -> _ {
+	let config = Config::from_file("Config.toml");
+	if config.get_server_config().get_password() == "testpass" {
+		println!();
+		println!("DEFAULT PASSWORD DETECTED!");
+		println!("Make sure you change the password from the default.");
+		println!();
+	}
 	rocket::build()
-	.manage(Config::from_file("Config.toml"))
+		.manage(config)
 		.mount("/", routes![get_file, put_file, get_file_info, get_dir_info])
 }
