@@ -1,5 +1,6 @@
 [server]
 files_root="server_files"
+password="testpass"
 
 [client]
 server_url="http://localhost:8000"

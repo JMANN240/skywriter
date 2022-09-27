@@ -8,10 +8,10 @@ use std::vec;
 use rocket::serde::json::Json;
 use std::fs;
 
-use skywriter::{FileInfo, Config};
+use skywriter::{FileInfo, Config, ValidPassword};
 
 #[get("/file/<virtual_path..>")]
-async fn get_file(virtual_path: PathBuf, config: &State<Config>) -> Result<NamedFile, Status> {
+async fn get_file(virtual_path: PathBuf, config: &State<Config>, _password: ValidPassword) -> Result<NamedFile, Status> {
 	let full_path = Path::new(config.get_server_config().get_files_root()).join(virtual_path);
 	match FileInfo::from_file_path(full_path) {
 		Ok(file_info) => {
@@ -39,7 +39,7 @@ impl<'r> FileUpload<'r> {
 }
 
 #[put("/file/<virtual_path..>", data="<form>")]
-async fn put_file(virtual_path: PathBuf, form: Form<FileUpload<'_>>, config: &State<Config>) -> Status {
+async fn put_file(virtual_path: PathBuf, form: Form<FileUpload<'_>>, config: &State<Config>, _password: ValidPassword) -> Status {
 	let full_path = Path::new(config.get_server_config().get_files_root()).join(virtual_path);
 	match full_path.parent() {
 		Some(parent_path) => {
@@ -66,7 +66,7 @@ async fn put_file(virtual_path: PathBuf, form: Form<FileUpload<'_>>, config: &St
 }
 
 #[get("/info/file/<virtual_path..>")]
-async fn get_file_info(virtual_path: PathBuf, config: &State<Config>) -> Result<Json<FileInfo>, Status> {
+async fn get_file_info(virtual_path: PathBuf, config: &State<Config>, _password: ValidPassword) -> Result<Json<FileInfo>, Status> {
 	let full_path = Path::new(config.get_server_config().get_files_root()).join(virtual_path);
 	match FileInfo::from_file_path(full_path) {
 		Ok(mut file_info) => {
@@ -80,7 +80,7 @@ async fn get_file_info(virtual_path: PathBuf, config: &State<Config>) -> Result<
 }
 
 #[get("/info/dir/<virtual_path..>")]
-async fn get_dir_info(virtual_path: PathBuf, config: &State<Config>) -> Result<Json<Vec<FileInfo>>, Status> {
+async fn get_dir_info(virtual_path: PathBuf, config: &State<Config>, _password: ValidPassword) -> Result<Json<Vec<FileInfo>>, Status> {
 	let full_path = Path::new(config.get_server_config().get_files_root()).join(virtual_path);
 	match FileInfo::from_dir_path(full_path.as_path()) {
 		Ok(mut file_infos) => {

@@ -2,7 +2,7 @@ use std::io;
 use std::fs;
 use std::path::Path;
 use reqwest::{multipart, Body};
-use skywriter::{FileInfo, Config, ClientConfig, Mappings, Mapping};
+use skywriter::{FileInfo, Config, ClientConfig, ServerConfig, Mappings, Mapping};
 use tokio_util::codec::{BytesCodec, FramedRead};
 use toml::value::Table;
 
@@ -23,6 +23,14 @@ impl Client {
 	
 	fn get_client_config(&self) -> &ClientConfig {
 		&self.get_config().get_client_config()
+	}
+	
+	fn get_server_config(&self) -> &ServerConfig {
+		&self.get_config().get_server_config()
+	}
+	
+	fn get_password(&self) -> &str {
+		self.get_server_config().get_password()
 	}
 	
 	fn get_server_url(&self) -> &str {
@@ -59,7 +67,8 @@ impl Client {
 
 		let server_file_path_str = server_file_path.to_str().expect("Server file path could not be interpreted as &str");
 
-		let res = reqwest::get(format!("{}/info/file{}", self.get_server_url(), server_file_path_str)).await
+		let client = reqwest::Client::new();
+		let res = client.get(format!("{}/info/file{}", self.get_server_url(), server_file_path_str)).header("password", self.get_password()).send().await
 			.expect("Failed to get file info");
 
 		let server_file_info = res.json::<FileInfo>().await
@@ -91,7 +100,8 @@ impl Client {
 		
 		let server_dir_path_str = server_dir_path.to_str().expect("Server dir path could not be interpreted as &str");
 
-		let res = reqwest::get(format!("{}/info/dir{}", self.get_server_url(), server_dir_path_str)).await
+		let client = reqwest::Client::new();
+		let res = client.get(format!("{}/info/dir{}", self.get_server_url(), server_dir_path_str)).header("password", self.get_password()).send().await
 			.expect("Failed to get dir info");
 		
 		let server_file_infos = res.json::<Vec<FileInfo>>().await
@@ -121,7 +131,8 @@ impl Client {
 		let mut file = fs::File::create(client_path).expect("File creation failed");
 		
 		let server_path = server_path.to_str().expect("Server path could not be interpreted as &str");
-		let res = reqwest::get(format!("{}/file/{}", self.get_server_url(), server_path)).await
+		let client = reqwest::Client::new();
+		let res = client.get(format!("{}/file/{}", self.get_server_url(), server_path)).header("password", self.get_password()).send().await
 			.expect("Failed to download file");
 		let res_text = res.text().await.expect("Text extraction failed");
 		io::copy(&mut res_text.as_bytes(), &mut file).expect("Copy failed");

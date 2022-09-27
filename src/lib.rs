@@ -1,4 +1,7 @@
 use ring::digest::{Context, Digest, SHA256};
+use rocket::Request;
+use rocket::request::{FromRequest, Outcome};
+use rocket::http::Status;
 use serde::{Serialize, Deserialize};
 use std::fs;
 use std::io::{self, Read};
@@ -90,12 +93,17 @@ impl Config {
 
 #[derive(Deserialize)]
 pub struct ServerConfig {
-	files_root: String
+	files_root: String,
+	password: String
 }
 
 impl ServerConfig {
 	pub fn get_files_root(&self) -> &str {
 		self.files_root.as_str()
+	}
+
+	pub fn get_password(&self) -> &str {
+		self.password.as_str()
 	}
 }
 
@@ -314,4 +322,33 @@ fn modified_seconds_path(path: &Path) -> u64 {
 		}
 	}
 	modified_seconds
+}
+
+#[derive(Debug)]
+pub enum PasswordValidationError {
+	IncorrectPassword,
+	PasswordHeaderMissing
+}
+
+pub struct ValidPassword;
+
+#[rocket::async_trait]
+impl<'r> FromRequest<'r> for ValidPassword {
+	type Error = PasswordValidationError;
+
+	async fn from_request(req: &'r Request<'_>) -> Outcome<Self, Self::Error> {
+		match req.headers().get_one("password") {
+			Some(password) => {
+				let actual_password = req.rocket().state::<Config>().unwrap().get_server_config().get_password();
+				if password == actual_password {
+					return Outcome::Success(Self);
+				} else {
+					return Outcome::Failure((Status::Unauthorized, PasswordValidationError::IncorrectPassword));
+				}
+			},
+			None => {
+				return Outcome::Failure((Status::Unauthorized, PasswordValidationError::PasswordHeaderMissing));
+			}
+		}
+	}
 }
