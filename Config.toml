@@ -3,7 +3,6 @@ files_root="server_files"
 
 [client]
 server_url="http://localhost:8000"
-sync_seconds=10
 
 [client.mappings.files]
 "client_files/client_original.txt"="/client_original.txt"

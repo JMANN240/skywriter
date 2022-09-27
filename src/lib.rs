@@ -102,7 +102,6 @@ impl ServerConfig {
 #[derive(Deserialize)]
 pub struct ClientConfig {
 	server_url: String,
-	sync_seconds: u32,
 	mappings: Mappings
 }
 

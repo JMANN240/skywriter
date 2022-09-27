@@ -1,6 +1,6 @@
 use std::io;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use reqwest::{multipart, Body};
 use skywriter::{FileInfo, Config, ClientConfig, Mappings, Mapping};
 use tokio_util::codec::{BytesCodec, FramedRead};
