@@ -54,7 +54,6 @@ impl Client {
 	}
 
 	async fn update_file(&self, client_file_path: &Path, server_file_path: &Path) -> () {
-		println!("Updating files at {:?} and {:?}", client_file_path, server_file_path);
 		let client_file_info = FileInfo::from_file_path(client_file_path.to_path_buf())
 			.expect("Could not build FileInfo for client path");
 
@@ -100,8 +99,6 @@ impl Client {
 		
 		for file_info in client_file_infos.iter() {
 			let client_file_path = file_info.get_path();
-			println!("client path: {:?}", client_file_path);
-			println!("prefix: {:?}", client_dir_path);
 			let dir_file_path = client_file_path.strip_prefix(client_dir_path)
 				.expect("Could not strip client dir path prefix");
 			let mut server_file_path = server_dir_path.to_path_buf();
@@ -119,27 +116,19 @@ impl Client {
 	}
 	
 	async fn download(&self, server_path: &Path, client_path: &Path) -> () {
-		println!("Downloading");
 		let parent_path = client_path.parent().expect(format!("Client path {:?} has no parent", client_path).as_str());
 		fs::create_dir_all(parent_path).expect(format!("Could not create dirs needed for {:?}", client_path).as_str());
 		let mut file = fs::File::create(client_path).expect("File creation failed");
 		
 		let server_path = server_path.to_str().expect("Server path could not be interpreted as &str");
-		let res_result = reqwest::get(format!("{}/file/{}", self.get_server_url(), server_path)).await;
+		let res = reqwest::get(format!("{}/file/{}", self.get_server_url(), server_path)).await
+			.expect("Failed to download file");
+		let res_text = res.text().await.expect("Text extraction failed");
+		io::copy(&mut res_text.as_bytes(), &mut file).expect("Copy failed");
 
-		match res_result {
-			Ok(res) => {
-				let res_text = res.text().await.expect("Text extraction failed");
-				io::copy(&mut res_text.as_bytes(), &mut file).expect("Copy failed");
-			},
-			Err(e) => {
-				println!("Failed to download file, status {:?}", e.status());
-			}
-		}
 	}
 	
 	async fn upload(&self, client_path: &Path, server_path: &Path) -> () {
-		println!("Uploading");
 		let server_path = server_path.to_str().expect("Server path could not be interpreted as &str");
 		let client = reqwest::Client::new();
 		let file = tokio::fs::File::open(client_path).await.unwrap();
@@ -148,17 +137,9 @@ impl Client {
 		let upload_stream = multipart::Part::stream(stream_body);
 		let form = multipart::Form::new().part("file", upload_stream);
 
-		let res_result = client.put(format!("{}/file/{}", self.get_server_url(), server_path))
-			.multipart(form).send().await;
-		
-		match res_result {
-			Ok(res) => {
-				println!("File uploaded successfully, status {:?}", res.status());
-			},
-			Err(e) => {
-				println!("Failed to upload file, status {:?}", e.status());
-			}
-		}
+		client.put(format!("{}/file/{}", self.get_server_url(), server_path))
+			.multipart(form).send().await
+			.expect("Failed to upload file");
 	}
 }
 
