@@ -1,24 +1,16 @@
-#[macro_use] extern crate rocket;
 use ring::digest::{Context, Digest, SHA256};
 use serde::{Serialize, Deserialize};
-use toml::value::Table;
 use std::fs;
 use std::io::{self, Read};
-use toml::Value;
-use rocket::request::{self, Outcome, Request, FromRequest};
-use rocket::fs::{NamedFile, TempFile};
-use rocket::http::Status;
-use std::path::{Path, PathBuf};
+use std::path::{Path, PathBuf, StripPrefixError};
 use std::time::SystemTime;
 use std::io::BufReader;
 use data_encoding::HEXUPPER;
 
 #[cfg(test)]
 mod tests {
-	use std::io::Read;
-	use std::path::{Path, PathBuf};
-	use std::fs::{File, read};
-	use std::vec::Vec;
+	use super::{FileInfo, modified_seconds_path, sha256_digest_path};
+	use std::path::Path;
 
 	const TEST_DIR_PATH_STR: &str = "test_dir";
 	const TEST_FILE_PATH_STR: &str = "test_dir/test.txt";
@@ -26,188 +18,165 @@ mod tests {
 	const INNER_FILE_PATH_STR: &str = "test_dir/inner_dir/inner.txt";
 
 	#[test]
-	fn read_test_file_at_path() {
-		let test_file_path = Path::new(TEST_FILE_PATH_STR);
-		let test_file_bytes = read(test_file_path).expect(format!("Error reading test file at '{}'", TEST_FILE_PATH_STR).as_str());
-		assert_eq!(test_file_bytes, vec![116, 101, 115, 116], "Test file did not contain 'test'");
+	fn get_test_file_info() {
+		let test_file_path = Path::new(TEST_FILE_PATH_STR).to_path_buf();
+		let test_file_info = FileInfo::from_file_path(test_file_path).expect(format!("Error creating test file info from path at '{}'", TEST_FILE_PATH_STR).as_str());
+		let assert_path = Path::new(TEST_FILE_PATH_STR);
+		assert_eq!(test_file_info.get_path(), assert_path);
+		assert_eq!(test_file_info.get_seconds(), modified_seconds_path(assert_path));
+		assert_eq!(test_file_info.get_digest(), sha256_digest_path(assert_path));
 	}
 
 	#[test]
-	fn read_inner_file_at_path() {
-		let inner_file_path = Path::new(INNER_FILE_PATH_STR);
-		let inner_file_bytes = read(inner_file_path).expect(format!("Error reading test file at '{}'", INNER_FILE_PATH_STR).as_str());
-		assert_eq!(inner_file_bytes, vec![105, 110, 110, 101, 114], "Inner file did not contain 'inner'");
+	fn get_inner_file_info() {
+		let inner_file_path = Path::new(INNER_FILE_PATH_STR).to_path_buf();
+		let inner_file_info = FileInfo::from_file_path(inner_file_path).expect(format!("Error creating inner file info from path at '{}'", INNER_FILE_PATH_STR).as_str());
+		let assert_path = Path::new(INNER_FILE_PATH_STR);
+		assert_eq!(inner_file_info.get_path(), assert_path);
+		assert_eq!(inner_file_info.get_seconds(), modified_seconds_path(assert_path));
+		assert_eq!(inner_file_info.get_digest(), sha256_digest_path(assert_path));
+	}
+
+	#[test]
+	fn get_test_dir_info() {
+		let test_file_path = Path::new(TEST_FILE_PATH_STR).to_path_buf();
+		let test_file_info = FileInfo::from_file_path(test_file_path).expect(format!("Error creating test file info from path at '{}'", TEST_FILE_PATH_STR).as_str());
+
+		let inner_file_path = Path::new(INNER_FILE_PATH_STR).to_path_buf();
+		let inner_file_info = FileInfo::from_file_path(inner_file_path).expect(format!("Error creating inner file info from path at '{}'", INNER_FILE_PATH_STR).as_str());
+
+		let test_dir_path = Path::new(TEST_DIR_PATH_STR);
+		let test_dir_infos = FileInfo::from_dir_path(test_dir_path).expect(format!("Error creating test dir infos from path at '{}'", TEST_DIR_PATH_STR).as_str());
+		
+		assert_eq!(test_dir_infos.len(), 2);
+		assert_eq!(test_dir_infos[0], inner_file_info);
+		assert_eq!(test_dir_infos[1], test_file_info);
+	}
+
+	#[test]
+	fn get_inner_dir_info() {
+		let inner_file_path = Path::new(INNER_FILE_PATH_STR).to_path_buf();
+		let inner_file_info = FileInfo::from_file_path(inner_file_path).expect(format!("Error creating inner file info from path at '{}'", INNER_FILE_PATH_STR).as_str());
+
+		let test_dir_path = Path::new(INNER_DIR_PATH_STR);
+		let test_dir_infos = FileInfo::from_dir_path(test_dir_path).expect(format!("Error creating inner dir infos from path at '{}'", INNER_DIR_PATH_STR).as_str());
+		
+		assert_eq!(test_dir_infos.len(), 1);
+		assert_eq!(test_dir_infos[0], inner_file_info);
 	}
 }
 
-#[derive(Deserialize)]
-pub struct Config {
-	server: ServerConfig,
-	client: ClientConfig
-}
-
-impl Config {
-	pub fn get_server_config(&self) -> &ServerConfig {
-		&self.server
-	}
-	
-	pub fn get_client_config(&self) -> &ClientConfig {
-		&self.client
-	}
-}
-
-#[derive(Deserialize)]
-pub struct ServerConfig {
-	file_root: String
-}
-
-impl ServerConfig {
-	pub fn get_file_root(&self) -> &str {
-		self.file_root.as_str()
-	}
-}
-
-#[derive(Deserialize)]
-pub struct ClientConfig {
-	server_url: String,
-	sync_seconds: u32,
-	mappings: Mappings
-}
-
-impl ClientConfig {
-	pub fn get_mappings(&self) -> &Mappings {
-		&self.mappings
-	}
-	
-	pub fn get_server_url(&self) -> &str {
-		&self.server_url
-	}
-}
-
-#[derive(Deserialize)]
-pub struct Mappings {
-	files: Value,
-	directories: Value
-}
-
-impl Mappings {
-	pub fn get_file_mappings(&self) -> &Table {
-		match self.files.as_table() {
-			Some(table) => {
-				table
-			},
-			None => {
-				panic!("File mappings are not a table");
-			}
-		}
-	}
-	
-	pub fn get_directory_mappings(&self) -> &Table {
-		match self.directories.as_table() {
-			Some(table) => {
-				table
-			},
-			None => {
-				panic!("Directory mappings are not a table");
-			}
-		}
-	}
-}
-
-pub fn parse_config_file() -> Config {
-	let config_string = fs::read_to_string("Config.toml").unwrap();
-	toml::from_str(&config_string).unwrap()
-}
-
-#[derive(FromForm)]
-pub struct FileUpload<'r> {
-	file: TempFile<'r>
-}
-
-impl<'r> FileUpload<'r> {
-	pub fn take_file(self) -> TempFile<'r> {
-		self.file
-	}
+#[derive(Serialize, Deserialize, PartialEq, Eq, Debug)]
+pub struct FileInfo {
+	path: PathBuf,
+	seconds: u64,
+	digest: String,
+	exists: bool
 }
 
 #[derive(Debug)]
-pub enum ExistingFileError {
-	FileNotFound,
-	InvalidConfig,
-	InvalidPath,
-	PathIsDirectory,
-	CannotOpenFile
+pub enum FileInfoError {
+	NotFile,
+	NotDir,
+	NotFound
 }
 
-pub struct ExistingFile {
-	file: NamedFile
-}
+impl FileInfo {
+	pub fn from_file_path(path: PathBuf) -> Result<Self, FileInfoError> {
+		if !path.is_file() {
+			if !path.exists() {
+				return Ok(
+					Self {
+						path,
+						seconds: 0,
+						digest: "".to_string(),
+						exists: false
+					}
+				);
+			}
+			
+			return Err(FileInfoError::NotFile);
+		}
 
-impl ExistingFile {
-	pub fn take_file(self) -> NamedFile {
-		self.file
+		let seconds = modified_seconds_path(&path);
+		let digest = sha256_digest_path(&path);
+
+		Ok(
+			Self {
+				path,
+				seconds,
+				digest,
+				exists: true
+			}
+		)
 	}
-}
 
-#[rocket::async_trait]
-impl<'r> FromRequest<'r> for ExistingFile {
-	type Error = ExistingFileError;
+	pub fn from_dir_path(path: &Path) -> Result<Vec<Self>, FileInfoError> {
+		if !path.exists() {
+			return Err(FileInfoError::NotFound);
+		}
 
-	async fn from_request(req: &'r Request<'_>) -> Outcome<Self, Self::Error> {
-		match req.segments::<PathBuf>(1..) {
-			Ok(virtual_path) => {
-				match req.rocket().state::<Config>() {
-					Some(config) => {
-						let root_path = Path::new(config.get_server_config().get_file_root());
-						let full_path = root_path.join(virtual_path);
-						if full_path.is_file() {
-							match NamedFile::open(full_path).await {
-								Ok(file) => {
-									return Outcome::Success(ExistingFile { file });
-								},
-								Err(_) => {
-									return Outcome::Failure((Status::Forbidden, ExistingFileError::CannotOpenFile));
-								}
-							}
-						} else {
-							if full_path.exists() {
-								return Outcome::Failure((Status::BadRequest, ExistingFileError::PathIsDirectory));
-							} else {
-								return Outcome::Failure((Status::NotFound, ExistingFileError::FileNotFound));
-							}
+		if !path.is_dir() {
+			return Err(FileInfoError::NotDir);
+		}
+
+		let paths = Self::walk_dir(path).unwrap();
+
+		Ok(paths.into_iter().map(|p| Self::from_file_path(p).unwrap()).collect())
+	}
+
+	pub fn get_path(&self) -> &Path {
+		&self.path
+	}
+
+	pub fn get_seconds(&self) -> u64 {
+		self.seconds
+	}
+
+	pub fn get_digest(&self) -> &str {
+		&self.digest
+	}
+
+	pub fn exists(&self) -> bool {
+		self.exists
+	}
+
+	pub fn strip_prefix<P: AsRef<Path>>(&mut self, prefix: P) -> Result<(), StripPrefixError> {
+		self.path = self.path.strip_prefix(prefix)?.to_path_buf();
+		Ok(())
+	}
+
+	fn walk_dir(path: &Path) -> Result<Vec<PathBuf>, FileInfoError> {
+		if !path.exists() {
+			return Err(FileInfoError::NotFound);
+		}
+
+		if !path.is_dir() {
+			return Err(FileInfoError::NotDir);
+		}
+
+		let mut paths = Vec::new();
+
+		if let Ok(iter) = fs::read_dir(path) {
+			for entry in iter {
+				if let Ok(entry) = entry {
+					let path = entry.path();
+					if path.is_dir() {
+						if let Ok(mut subpaths) = Self::walk_dir(path.as_path()) {
+							paths.append(&mut subpaths);
 						}
-					},
-					None => {
-						return Outcome::Failure((Status::InternalServerError, ExistingFileError::InvalidConfig));
+					} else {
+						paths.push(path)
 					}
 				}
-			},
-			Err(_) => {
-				return Outcome::Failure((Status::BadRequest, ExistingFileError::InvalidPath));
 			}
 		}
+
+		Ok(paths)
 	}
 }
 
-pub fn walk_dir(root_path: &Path) -> Vec<PathBuf> {
-	let mut paths = Vec::new();
-	if let Ok(iter) = fs::read_dir(root_path) {
-		for entry in iter {
-			if let Ok(entry) = entry {
-				let path = entry.path();
-				if path.is_dir() {
-					let mut subpaths = walk_dir(path.as_path());
-					paths.append(&mut subpaths);
-				} else {
-					paths.push(path)
-				}
-			}
-		}
-	}
-	paths
-}
-
-pub fn sha256_digest<R: Read>(mut reader: R) -> Result<Digest, io::Error> {
+fn sha256_digest<R: Read>(mut reader: R) -> Result<Digest, io::Error> {
 	let mut context = Context::new(&SHA256);
 	let mut buffer = [0; 1024];
 
@@ -222,7 +191,7 @@ pub fn sha256_digest<R: Read>(mut reader: R) -> Result<Digest, io::Error> {
 	Ok(context.finish())
 }
 
-pub fn sha256_digest_path(path: &Path) -> String {
+fn sha256_digest_path(path: &Path) -> String {
 	let mut digest_string = "".to_string();
 	if let Ok(input_file) = fs::File::open(path) {
 		let file_reader = BufReader::new(input_file);
@@ -233,7 +202,7 @@ pub fn sha256_digest_path(path: &Path) -> String {
 	digest_string
 }
 
-pub fn modified_seconds_path(path: &Path) -> u64 {
+fn modified_seconds_path(path: &Path) -> u64 {
 	let mut modified_seconds = 0;
 	if let Ok(metadata) = fs::metadata(path) {
 		if let Ok(modified_time) = metadata.modified() {
@@ -243,21 +212,4 @@ pub fn modified_seconds_path(path: &Path) -> u64 {
 		}
 	}
 	modified_seconds
-}
-
-#[derive(Serialize)]
-pub struct FileHeaders {
-	path: String,
-	seconds: u64,
-	digest: String
-}
-
-impl FileHeaders {
-	pub fn from_path_buf(path: PathBuf) -> Self {
-		Self {
-			path: path.to_string_lossy().into_owned(),
-			seconds: modified_seconds_path(&path),
-			digest: sha256_digest_path(&path)
-		}
-	}
 }
