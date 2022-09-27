@@ -1,13 +1,14 @@
 [server]
-file_root="files"
+files_root="server_files"
 
 [client]
 server_url="http://localhost:8000"
 sync_seconds=10
 
 [client.mappings.files]
-"test.txt"="/test.txt"
-"duality.jpg"="/images/duality.jpg"
+"client_files/client_original.txt"="/client_original.txt"
+"client_files/server_original.txt"="/server_original.txt"
 
-[client.mappings.directories]
-"some/dir/"="/another/dir/"
+[client.mappings.dirs]
+"client_files/client_dir/"="/client_dir_copy/"
+"client_files/server_dir_copy/"="/server_dir/"

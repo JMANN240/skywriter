@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf, StripPrefixError};
 use std::time::SystemTime;
 use std::io::BufReader;
 use data_encoding::HEXUPPER;
+use toml::{Value, value::Table};
 
 #[cfg(test)]
 mod tests {
@@ -66,6 +67,108 @@ mod tests {
 	}
 }
 
+#[derive(Deserialize)]
+pub struct Config {
+	server: ServerConfig,
+	client: ClientConfig
+}
+
+impl Config {
+	pub fn from_file<P: AsRef<Path>>(path: P) -> Self {
+		let config_string = fs::read_to_string(path).unwrap();
+		toml::from_str(&config_string).unwrap()
+	}
+
+	pub fn get_server_config(&self) -> &ServerConfig {
+		&self.server
+	}
+	
+	pub fn get_client_config(&self) -> &ClientConfig {
+		&self.client
+	}
+}
+
+#[derive(Deserialize)]
+pub struct ServerConfig {
+	files_root: String
+}
+
+impl ServerConfig {
+	pub fn get_files_root(&self) -> &str {
+		self.files_root.as_str()
+	}
+}
+
+#[derive(Deserialize)]
+pub struct ClientConfig {
+	server_url: String,
+	sync_seconds: u32,
+	mappings: Mappings
+}
+
+impl ClientConfig {
+	pub fn get_mappings(&self) -> &Mappings {
+		&self.mappings
+	}
+	
+	pub fn get_server_url(&self) -> &str {
+		&self.server_url
+	}
+}
+
+#[derive(Deserialize)]
+pub struct Mappings {
+	files: Value,
+	dirs: Value
+}
+
+impl Mappings {
+	pub fn get_file_mappings(&self) -> &Table {
+		self.files.as_table().expect("File mappings are not a table")
+	}
+	
+	pub fn get_dir_mappings(&self) -> &Table {
+		self.dirs.as_table().expect("Dir mappings are not a table")
+	}
+}
+
+pub struct Mapping {
+	client_path_buf: PathBuf,
+	server_path_buf: PathBuf
+}
+
+impl Mapping {
+	pub fn from_table_entry((client_file_string, server_file_value): (&String, &Value)) -> Self {
+		let client_mapping_str = client_file_string.as_str();
+		let client_path_buf = Path::new(client_mapping_str).to_path_buf();
+
+		let server_mapping_str = server_file_value.as_str()
+			.expect(format!("Mapping value was not a string: {:?}", server_file_value).as_str());
+		let server_path_buf = Path::new(server_mapping_str).to_path_buf();
+
+		Self {
+			client_path_buf,
+			server_path_buf
+		}
+	}
+
+	pub fn get_client_path(&self) -> &Path {
+		&self.client_path_buf
+	}
+
+	pub fn get_client_path_str(&self) -> &str {
+		&self.client_path_buf.to_str().expect("Client path could not be interpreted as &str")
+	}
+
+	pub fn get_server_path(&self) -> &Path {
+		&self.server_path_buf
+	}
+
+	pub fn get_server_path_str(&self) -> &str {
+		&self.server_path_buf.to_str().expect("Server path could not be interpreted as &str")
+	}
+}
+
 #[derive(Serialize, Deserialize, PartialEq, Eq, Debug)]
 pub struct FileInfo {
 	path: PathBuf,
@@ -112,11 +215,11 @@ impl FileInfo {
 	}
 
 	pub fn from_dir_path(path: &Path) -> Result<Vec<Self>, FileInfoError> {
-		if !path.exists() {
-			return Err(FileInfoError::NotFound);
-		}
-
 		if !path.is_dir() {
+			if !path.exists() {
+				return Ok(Vec::new());
+			}
+			
 			return Err(FileInfoError::NotDir);
 		}
 
