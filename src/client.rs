@@ -1,6 +1,7 @@
 use std::io;
 use std::fs;
 use std::path::Path;
+use reqwest::StatusCode;
 use reqwest::{multipart, Body};
 use skywriter::{FileInfo, Config, ClientConfig, ServerConfig, Mappings, Mapping};
 use tokio_util::codec::{BytesCodec, FramedRead};
@@ -68,8 +69,20 @@ impl Client {
 		let server_file_path_str = server_file_path.to_str().expect("Server file path could not be interpreted as &str");
 
 		let client = reqwest::Client::new();
-		let res = client.get(format!("{}/info/file{}", self.get_server_url(), server_file_path_str)).header("password", self.get_password()).send().await
-			.expect("Failed to get file info");
+		let res_result = client.get(format!("{}/info/file{}", self.get_server_url(), server_file_path_str)).header("password", self.get_password()).send().await;
+
+		let res = match res_result {
+			Ok(res) => res,
+			Err(e) => {
+				println!("Could not get file info, status {:?}", e.status());
+				return;
+			}
+		};
+
+		if res.status() == StatusCode::UNAUTHORIZED {
+			println!("Could not get file info, status {:?}", res.status());
+			return;
+		}
 
 		let server_file_info = res.json::<FileInfo>().await
 			.expect("Could not build FileInfo for server path");
@@ -101,9 +114,21 @@ impl Client {
 		let server_dir_path_str = server_dir_path.to_str().expect("Server dir path could not be interpreted as &str");
 
 		let client = reqwest::Client::new();
-		let res = client.get(format!("{}/info/dir{}", self.get_server_url(), server_dir_path_str)).header("password", self.get_password()).send().await
-			.expect("Failed to get dir info");
+		let res_result = client.get(format!("{}/info/dir{}", self.get_server_url(), server_dir_path_str)).header("password", self.get_password()).send().await;
 		
+		let res = match res_result {
+			Ok(res) => res,
+			Err(e) => {
+				println!("Could not get dir info, status {:?}", e.status());
+				return;
+			}
+		};
+
+		if res.status() == StatusCode::UNAUTHORIZED {
+			println!("Could not get dir info, status {:?}", res.status());
+			return;
+		}
+
 		let server_file_infos = res.json::<Vec<FileInfo>>().await
 			.expect(format!("Could not build FileInfo for server path {:?}", server_dir_path).as_str());
 		
@@ -132,8 +157,21 @@ impl Client {
 		
 		let server_path = server_path.to_str().expect("Server path could not be interpreted as &str");
 		let client = reqwest::Client::new();
-		let res = client.get(format!("{}/file/{}", self.get_server_url(), server_path)).header("password", self.get_password()).send().await
-			.expect("Failed to download file");
+		let res_result = client.get(format!("{}/file/{}", self.get_server_url(), server_path)).header("password", self.get_password()).send().await;
+
+		let res = match res_result {
+			Ok(res) => res,
+			Err(e) => {
+				println!("Could not download file, status {:?}", e.status());
+				return;
+			}
+		};
+
+		if res.status() == StatusCode::UNAUTHORIZED {
+			println!("Could not download file, status {:?}", res.status());
+			return;
+		}
+
 		let res_text = res.text().await.expect("Text extraction failed");
 		io::copy(&mut res_text.as_bytes(), &mut file).expect("Copy failed");
 
@@ -148,9 +186,21 @@ impl Client {
 		let upload_stream = multipart::Part::stream(stream_body);
 		let form = multipart::Form::new().part("file", upload_stream);
 
-		client.put(format!("{}/file/{}", self.get_server_url(), server_path))
-			.multipart(form).send().await
-			.expect("Failed to upload file");
+		let res_result = client.put(format!("{}/file/{}", self.get_server_url(), server_path))
+			.multipart(form).send().await;
+		
+		let res = match res_result {
+			Ok(res) => res,
+			Err(e) => {
+				println!("Could not upload file, status {:?}", e.status());
+				return;
+			}
+		};
+
+		if res.status() == StatusCode::UNAUTHORIZED {
+			println!("Could not upload file, status {:?}", res.status());
+			return;
+		}
 	}
 }
 
