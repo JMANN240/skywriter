@@ -10,6 +10,11 @@ use std::fs;
 
 use skywriter::{FileInfo, Config, ValidPassword};
 
+#[get("/")]
+async fn index() -> &'static str {
+    "Skywriter Operational"
+}
+
 #[get("/file/<virtual_path..>")]
 async fn get_file(virtual_path: PathBuf, config: &State<Config>, _password: ValidPassword) -> Result<NamedFile, Status> {
 	let full_path = Path::new(config.get_server_config().get_files_root()).join(virtual_path);
@@ -104,5 +109,5 @@ fn rocket() -> _ {
 	}
 	rocket::build()
 		.manage(config)
-		.mount("/", routes![get_file, put_file, get_file_info, get_dir_info])
+		.mount("/", routes![index, get_file, put_file, get_file_info, get_dir_info])
 }
