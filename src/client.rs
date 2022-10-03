@@ -187,7 +187,9 @@ impl Client {
 		let form = multipart::Form::new().part("file", upload_stream);
 
 		let res_result = client.put(format!("{}/file/{}", self.get_server_url(), server_path))
-			.multipart(form).send().await;
+			.multipart(form)
+			.header("password", self.get_password())
+			.send().await;
 		
 		let res = match res_result {
 			Ok(res) => res,
