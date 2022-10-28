@@ -10,16 +10,22 @@ use std::fs;
 
 use skywriter::{FileInfo, Config, ValidPassword};
 
+// Health check route
 #[get("/")]
 async fn index() -> &'static str {
     "Skywriter Operational"
 }
 
+// Route for getting a file
 #[get("/file/<virtual_path..>")]
 async fn get_file(virtual_path: PathBuf, config: &State<Config>, _password: ValidPassword) -> Result<NamedFile, Status> {
+	// Get the full path for the file based on the configured file root
 	let full_path = Path::new(config.get_server_config().get_files_root()).join(virtual_path);
+
+	// Check to see if the given path could create a FileInfo struct, return 422 otherwise
 	match FileInfo::from_file_path(full_path) {
 		Ok(file_info) => {
+			// If the file exists, return it, otherwise return 404
 			if file_info.exists() {
 				Ok(NamedFile::open(file_info.get_path()).await.unwrap())
 			} else {
@@ -32,24 +38,32 @@ async fn get_file(virtual_path: PathBuf, config: &State<Config>, _password: Vali
 	}
 }
 
+// Structure for getting the uploaded file
 #[derive(FromForm)]
 pub struct FileUpload<'r> {
 	file: TempFile<'r>
 }
 
 impl<'r> FileUpload<'r> {
+	// Move the file out of the struct
 	pub fn take_file(self) -> TempFile<'r> {
 		self.file
 	}
 }
 
+// Route for uploading a file
 #[put("/file/<virtual_path..>", data="<form>")]
 async fn put_file(virtual_path: PathBuf, form: Form<FileUpload<'_>>, config: &State<Config>, _password: ValidPassword) -> Status {
+	// Get the full path for the file based on the configured file root
 	let full_path = Path::new(config.get_server_config().get_files_root()).join(virtual_path);
+
+	// Check to see if the given path could have a parent directory, return 422 otherwise
 	match full_path.parent() {
 		Some(parent_path) => {
+			// Try to create that parent path if it doesn't exist, return 403 otherwise
 			match fs::create_dir_all(parent_path) {
 				Ok(()) => {
+					// Try to get the uploaded file and save it to full_path, return 500 otherwise
 					match form.into_inner().take_file().persist_to(full_path).await {
 						Ok(()) => {
 							Status::Created
@@ -70,11 +84,16 @@ async fn put_file(virtual_path: PathBuf, form: Form<FileUpload<'_>>, config: &St
 	}
 }
 
+// Route for getting a file's information
 #[get("/info/file/<virtual_path..>")]
 async fn get_file_info(virtual_path: PathBuf, config: &State<Config>, _password: ValidPassword) -> Result<Json<FileInfo>, Status> {
+	// Get the full path for the file based on the configured file root
 	let full_path = Path::new(config.get_server_config().get_files_root()).join(virtual_path);
+
+	// Check to see if the given path could create a FileInfo struct, return 422 otherwise
 	match FileInfo::from_file_path(full_path) {
 		Ok(mut file_info) => {
+			// Strip the server's file root prefix from file_info and return it as JSON
 			file_info.strip_prefix(config.get_server_config().get_files_root()).unwrap();
 			Ok(Json(file_info))
 		},
@@ -86,9 +105,13 @@ async fn get_file_info(virtual_path: PathBuf, config: &State<Config>, _password:
 
 #[get("/info/dir/<virtual_path..>")]
 async fn get_dir_info(virtual_path: PathBuf, config: &State<Config>, _password: ValidPassword) -> Result<Json<Vec<FileInfo>>, Status> {
+	// Get the full path for the file based on the configured file root
 	let full_path = Path::new(config.get_server_config().get_files_root()).join(virtual_path);
+
+	// Check to see if the given path could create a vector of FileInfo structs, return 422 otherwise
 	match FileInfo::from_dir_path(full_path.as_path()) {
 		Ok(mut file_infos) => {
+			// Strip the server's file root prefix from file_infos and return it as JSON
 			file_infos.iter_mut().for_each(|fi| fi.strip_prefix(&full_path).unwrap());
 			Ok(Json(file_infos))
 		},
