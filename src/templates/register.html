@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Document</title>
+	<style>
+		@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@100;400;700&display=swap');
+
+		@media (prefers-color-scheme: light) {
+			:root {
+				--prim: #ffffff;
+				--prim-shadow: #d0d0d0;
+				--prim-shadow-sec: #c0c0c0;
+				--sec: #000000;
+				--light: #ffff00;
+			}
+		}
+
+		@media (prefers-color-scheme: dark) {
+			:root {
+				--prim: #202020;
+				--prim-shadow: #101010;
+				--prim-shadow-sec: #000000;
+				--sec: #ffffff;
+				--light: #00ffff;
+			}
+		}
+
+		* {
+			font-family: 'Roboto', sans-serif;
+			font-weight: 100;
+			color: var(--sec);
+			background-color: var(--prim);
+			margin: 0;
+			padding: 0;
+		}
+
+		html {
+			scrollbar-width: none;
+		}
+
+		body {
+			display: flex;
+			flex-direction: column;
+			justify-content: center;
+			align-items: center;
+			width: 100vw;
+			height: 100vh;
+		}
+
+		.card {
+			border-radius: 2vmin;
+			-webkit-box-shadow: 0px 5px 10px 2px var(--prim-shadow);
+			box-shadow: 0px 5px 10px 2px var(--prim-shadow);
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			justify-content: flex-start;
+			margin: 2vmin;
+			padding: 2vmin 5vmin;
+		}
+
+		.card h1 {
+			font-weight: 700;
+			font-size: 5vmin;
+		}
+
+		.card h2 {
+			font-weight: 400;
+			font-size: 3vmin;
+		}
+
+		.card input {
+			font-size: 3vmin;
+			margin: 1vmin;
+			padding: 0.5vmin;
+			border-radius: 1vmin;
+			border: 0px solid black;
+			-webkit-box-shadow: 0px 5px 10px 2px var(--prim-shadow);
+			box-shadow: 0px 5px 10px 2px var(--prim-shadow);
+		}
+
+		input {
+			background-color: var(--prim);
+		}
+
+		input:focus {
+			outline: 3px solid var(--light-darker);
+		}
+
+		.word-btn {
+			text-decoration: none;
+			font-size: 3vmin;
+			margin: 1vmin;
+			-webkit-box-shadow: 0 4px 0 0 var(--prim-shadow-sec), 0px 4px 10px 2px var(--prim-shadow);
+			box-shadow: 0 4px 0 0 var(--prim-shadow-sec), 0px 4px 10px 2px var(--prim-shadow);
+			border: 0;
+			border-radius: 1vmin;
+			margin: 1vmin;
+			padding: 0.5vmin;
+			transition-duration: 0.1s;
+		}
+		
+		.word-btn:hover {
+			-webkit-box-shadow: 0 3px 0 0 var(--prim-shadow-sec), 0px 3px 7.5px 1.5px var(--prim-shadow);
+			box-shadow: 0 3px 0 0 var(--prim-shadow-sec), 0px 3px 7.5px 1.5px var(--prim-shadow);
+			transform: translateY(1px);
+		}
+		
+		.word-btn:active {
+			-webkit-box-shadow: 0 0 0 0 var(--prim-shadow-sec), 0 0 0 0 var(--prim-shadow);
+			box-shadow: 0 0 0 0 var(--prim-shadow-sec), 0 0 0 0 var(--prim-shadow);
+			transform: translateY(4px);
+		}
+	</style>
+</head>
+<body>
+	<div class="card">
+		<h1>Register</h1>
+		<input type="text" placeholder="Username">
+		<input type="password" placeholder="Password">
+		<input type="password" placeholder="Confirm Password">
+		<button class="word-btn">Register</button>
+	</div>
+</body>
+</html>
