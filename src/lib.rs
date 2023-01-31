@@ -1,3 +1,4 @@
+use std::ffi::OsStr;
 use ring::digest::{Context, Digest, SHA256};
 use rocket::Request;
 use rocket::request::{FromRequest, Outcome};
@@ -101,7 +102,8 @@ impl Config {
 #[derive(Deserialize)]
 pub struct ServerConfig {
 	files_root: String,
-	password: String
+	password: String,
+	ignored_paths: Value
 }
 
 impl ServerConfig {
@@ -114,6 +116,10 @@ impl ServerConfig {
 
 	pub fn get_password(&self) -> &str {
 		self.password.as_str()
+	}
+
+	pub fn get_ignored_paths(&self) -> Vec<&OsStr> {
+		self.ignored_paths.as_array().expect("Ignored paths is not an array").as_slice().iter().map(|p| OsStr::new(p.as_str().expect("Ignored path is not string"))).collect()
 	}
 }
 
@@ -228,7 +234,7 @@ impl FileInfo {
 						path,
 						seconds: 0,
 						digest: "".to_string(),
-						exists: false
+						exists: false,
 					}
 				);
 			}

@@ -164,7 +164,7 @@ impl Client {
 
 		// Build the FileInfo structs for the files in the directory on the server, panic if unable
 		let server_file_infos = res.json::<Vec<FileInfo>>().await
-			.expect(format!("Could not build FileInfo for server path {:?}", server_dir_path).as_str());
+			.expect(format!("Could not build FileInfos for server path {:?}", server_dir_path).as_str());
 		
 		// Loop through each file on the client
 		for file_info in client_file_infos.iter() {
@@ -277,7 +277,12 @@ impl Client {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
 	let client = Client::new();
+	println!("1");
 	client.sync_files(client.get_file_mappings()).await;
+	println!("2");
 	client.sync_dirs(client.get_dir_mappings()).await;
+	println!("1");
+	println!("1");
+	println!("3");
 	Ok(())
 }

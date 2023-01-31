@@ -26,7 +26,8 @@ async fn get_file(virtual_path: PathBuf, config: &State<Config>, _password: Vali
 	match FileInfo::from_file_path(full_path) {
 		Ok(file_info) => {
 			// If the file exists, return it, otherwise return 404
-			if file_info.exists() {
+			let ignored = config.get_server_config().get_ignored_paths().contains(&file_info.get_path().as_os_str());
+			if file_info.exists() && !ignored {
 				Ok(NamedFile::open(file_info.get_path()).await.unwrap())
 			} else {
 				Err(Status::NotFound)
@@ -56,6 +57,12 @@ impl<'r> FileUpload<'r> {
 async fn put_file(virtual_path: PathBuf, form: Form<FileUpload<'_>>, config: &State<Config>, _password: ValidPassword) -> Status {
 	// Get the full path for the file based on the configured file root
 	let full_path = Path::new(config.get_server_config().get_files_root()).join(virtual_path);
+
+	// Check to see if we should ignore it
+	let ignored = config.get_server_config().get_ignored_paths().contains(&full_path.as_path().as_os_str());
+	if ignored {
+		return Status::NoContent;
+	}
 
 	// Check to see if the given path could have a parent directory, return 422 otherwise
 	match full_path.parent() {
