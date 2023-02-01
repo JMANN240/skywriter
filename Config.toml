@@ -1,14 +1,10 @@
 [server]
 files_root="server_files"
-password="testpass"
+password="TrueMathNote1!*"
 
 [client]
-server_url="http://localhost:8000"
+server_url="https://skywriter.ejrobotics.com"
 
 [client.mappings.files]
-"client_files/client_original.txt"="/client_original.txt"
-"client_files/server_original.txt"="/server_original.txt"
 
 [client.mappings.dirs]
-"client_files/client_dir/"="/client_dir_copy/"
-"client_files/server_dir_copy/"="/server_dir/"
