@@ -1,6 +1,7 @@
 [server]
 files_root="server_files"
 password="TrueMathNote1!*"
+ignored_paths=[]
 
 [client]
 server_url="https://skywriter.ejrobotics.com"

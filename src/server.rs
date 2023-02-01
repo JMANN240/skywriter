@@ -1,5 +1,6 @@
 #[macro_use] extern crate rocket;
 use rocket::fs::{NamedFile, TempFile};
+use rocket::http::uri::Segments;
 use rocket::http::Status;
 use rocket::form::Form;
 use rocket::State;
@@ -17,8 +18,11 @@ async fn index() -> &'static str {
 }
 
 // Route for getting a file
-#[get("/file/<virtual_path..>")]
-async fn get_file(virtual_path: PathBuf, config: &State<Config>, _password: ValidPassword) -> Result<NamedFile, Status> {
+#[get("/file/<virtual_path_segments..>")]
+async fn get_file(virtual_path_segments: Segments<'_, rocket::http::uri::fmt::Path>, config: &State<Config>, _password: ValidPassword) -> Result<NamedFile, Status> {
+    // Turn the segments into PathBuf
+    let virtual_path = virtual_path_segments.to_path_buf(true).unwrap();
+
 	// Get the full path for the file based on the configured file root
 	let full_path = Path::new(config.get_server_config().get_files_root()).join(virtual_path);
 
@@ -26,7 +30,8 @@ async fn get_file(virtual_path: PathBuf, config: &State<Config>, _password: Vali
 	match FileInfo::from_file_path(full_path) {
 		Ok(file_info) => {
 			// If the file exists, return it, otherwise return 404
-			if file_info.exists() {
+			let ignored = config.get_server_config().get_ignored_paths().contains(&file_info.get_path().as_os_str());
+			if file_info.exists() && !ignored {
 				Ok(NamedFile::open(file_info.get_path()).await.unwrap())
 			} else {
 				Err(Status::NotFound)
@@ -52,10 +57,19 @@ impl<'r> FileUpload<'r> {
 }
 
 // Route for uploading a file
-#[put("/file/<virtual_path..>", data="<form>")]
-async fn put_file(virtual_path: PathBuf, form: Form<FileUpload<'_>>, config: &State<Config>, _password: ValidPassword) -> Status {
+#[put("/file/<virtual_path_segments..>", data="<form>")]
+async fn put_file(virtual_path_segments: Segments<'_, rocket::http::uri::fmt::Path>, form: Form<FileUpload<'_>>, config: &State<Config>, _password: ValidPassword) -> Status {
+    // Turn the segments into PathBuf
+    let virtual_path = virtual_path_segments.to_path_buf(true).unwrap();
+
 	// Get the full path for the file based on the configured file root
 	let full_path = Path::new(config.get_server_config().get_files_root()).join(virtual_path);
+
+	// Check to see if we should ignore it
+	let ignored = config.get_server_config().get_ignored_paths().contains(&full_path.as_path().as_os_str());
+	if ignored {
+		return Status::NoContent;
+	}
 
 	// Check to see if the given path could have a parent directory, return 422 otherwise
 	match full_path.parent() {
@@ -85,8 +99,11 @@ async fn put_file(virtual_path: PathBuf, form: Form<FileUpload<'_>>, config: &St
 }
 
 // Route for getting a file's information
-#[get("/info/file/<virtual_path..>")]
-async fn get_file_info(virtual_path: PathBuf, config: &State<Config>, _password: ValidPassword) -> Result<Json<FileInfo>, Status> {
+#[get("/info/file/<virtual_path_segments..>")]
+async fn get_file_info(virtual_path_segments: Segments<'_, rocket::http::uri::fmt::Path>, config: &State<Config>, _password: ValidPassword) -> Result<Json<FileInfo>, Status> {
+    // Turn the segments into PathBuf
+    let virtual_path = virtual_path_segments.to_path_buf(true).unwrap();
+
 	// Get the full path for the file based on the configured file root
 	let full_path = Path::new(config.get_server_config().get_files_root()).join(virtual_path);
 
@@ -103,8 +120,11 @@ async fn get_file_info(virtual_path: PathBuf, config: &State<Config>, _password:
 	}
 }
 
-#[get("/info/dir/<virtual_path..>")]
-async fn get_dir_info(virtual_path: PathBuf, config: &State<Config>, _password: ValidPassword) -> Result<Json<Vec<FileInfo>>, Status> {
+#[get("/info/dir/<virtual_path_segments..>")]
+async fn get_dir_info(virtual_path_segments: Segments<'_, rocket::http::uri::fmt::Path>, config: &State<Config>, _password: ValidPassword) -> Result<Json<Vec<FileInfo>>, Status> {
+    // Turn the segments into PathBuf
+    let virtual_path = virtual_path_segments.to_path_buf(true).unwrap();
+
 	// Get the full path for the file based on the configured file root
 	let full_path = Path::new(config.get_server_config().get_files_root()).join(virtual_path);
 
